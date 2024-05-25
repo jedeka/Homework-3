@@ -80,7 +80,6 @@ class MyPortfolio:
             env.start()
             with gp.Model(env=env) as model:
                 n = len(assets)
-                # w = model.addVars(n, name='w', lb=0.0, ub=1.0)
                 w = model.addMVar(n, lb=0.0, ub=1.0, name='w')
                 
                 window_return = self.returns[assets].rolling(self.lookback)
@@ -102,8 +101,23 @@ class MyPortfolio:
 
                 model.optimize()
 
-                for i in range(n):
-                    self.portfolio_weights.loc[:, assets[i]] = w[i].x
+                if model.status == gp.GRB.INF_OR_UNBD:
+                    print(
+                        "Model status is INF_OR_UNBD. Reoptimizing with DualReductions set to 0."
+                    )
+                elif model.status == gp.GRB.INFEASIBLE:
+                    # Handle infeasible model
+                    print("Model is infeasible.")
+                elif model.status == gp.GRB.INF_OR_UNBD:
+                    # Handle infeasible or unbounded model
+                    print("Model is infeasible or unbounded.")
+
+                if model.status == gp.GRB.OPTIMAL or model.status == gp.GRB.SUBOPTIMAL:
+                    solution = []
+                    for i in range(n):
+                        solution.append(w[i].x)
+
+        self.portfolio_weights.loc[:, assets] = solution
         
         """
         TODO: Complete Task 4 Above
