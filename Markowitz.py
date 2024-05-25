@@ -67,6 +67,9 @@ class EqualWeightPortfolio:
         TODO: Complete Task 1 Below
         """
 
+        # equal portion for all assets
+        self.portfolio_weights.loc[:, assets] = 1 / len(assets)
+
         """
         TODO: Complete Task 1 Above
         """
@@ -117,6 +120,12 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
+        
+        for i in range(self.lookback + 1, len(df)): # start from 1, index 0 has no pct_change
+            returns = df_returns.copy()[assets]
+            asset_vol = returns.iloc[i - self.lookback : i].std()
+            inv_vol = 1 / asset_vol
+            self.portfolio_weights.loc[df.index[i], assets] = inv_vol / inv_vol.sum()
 
         """
         TODO: Complete Task 2 Above
@@ -192,8 +201,32 @@ class MeanVariancePortfolio:
 
                 # Sample Code: Initialize Decision w and the Objective
                 # NOTE: You can modify the following code
-                w = model.addMVar(n, name="w", ub=1)
-                model.setObjective(w.sum(), gp.GRB.MAXIMIZE)
+                # w = model.addMVar(n, name="w", ub=1)
+                # model.setObjective(w.sum(), gp.GRB.MAXIMIZE)
+
+                # weights
+                w = model.addVars(n, lb=0.0, ub=1.0, name='w')
+                
+                # long-only constraint (w_i >= 0, ∀i)
+                model.addConstrs((w[i] >= 0 for i in range(n)), 
+                                 name='long_only_constraint')
+                
+                # no leverage constraint (w.sum() == 1)
+                model.addConstr(w.sum() == 1)
+                
+                # set objective for (Markowitz) MV portfolio 
+                #   (w.T @ μ - (γ/2) * w.T @ Σ @ w)
+                
+                # expected return = w.T @ μ 
+                mean_return = gp.quicksum(w[i] * mu[i] for i in range(n))
+                # variance = w @ Sigma @ w
+                var =  gp.quicksum(w[i] * Sigma[i,j] * w[j] 
+                                for i in range(n) for j in range(n)
+                                )
+                
+                objective = mean_return - (gamma / 2) * var
+                model.setObjective(objective, gp.GRB.MAXIMIZE)
+
 
                 """
                 TODO: Complete Task 3 Below

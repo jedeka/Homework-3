@@ -74,7 +74,37 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
+        
+        with gp.Env(empty=True) as env:
+            env.setParam('OutputFlag', 0)
+            env.start()
+            with gp.Model(env=env) as model:
+                n = len(assets)
+                # w = model.addVars(n, name='w', lb=0.0, ub=1.0)
+                w = model.addMVar(n, lb=0.0, ub=1.0, name='w')
+                
+                window_return = self.returns[assets].rolling(self.lookback)
+                mean = window_return.mean().iloc[-1]
+                std = window_return.std().iloc[-1]
 
+                # long-only constraint (w_i >= 0, ∀i)
+                model.addConstrs((w[i] >= 0 for i in range(n)), 
+                                        name='long_only_constraint')
+                    
+                # no leverage constraint (w.sum() == 1)
+                model.addConstr(w.sum() == 1, name='no_lev_constraint')
+
+                # set objective function
+                risk_free_ratio = 0.02
+                sharpe = (mean - risk_free_ratio) / std
+                weighted_sharpe = gp.quicksum(sharpe[i] * w[i] for i in range(n))
+                model.setObjective(weighted_sharpe, gp.GRB.MAXIMIZE)
+
+                model.optimize()
+
+                for i in range(n):
+                    self.portfolio_weights.loc[:, assets[i]] = w[i].x
+        
         """
         TODO: Complete Task 4 Above
         """
